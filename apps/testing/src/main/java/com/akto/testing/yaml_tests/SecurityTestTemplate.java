@@ -8,7 +8,11 @@ import com.akto.dto.test_editor.ExecutorNode;
 import com.akto.dto.test_editor.FilterNode;
 import com.akto.dto.testing.AuthMechanism;
 import com.akto.dto.testing.TestResult;
+import com.akto.dto.testing.TestingRunConfig;
 
+import java.util.Collections;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -24,7 +28,9 @@ public abstract class SecurityTestTemplate {
     AuthMechanism authMechanism;
     String logId;
 
-    public SecurityTestTemplate(ApiInfo.ApiInfoKey apiInfoKey, FilterNode filterNode, FilterNode validatorNode, ExecutorNode executorNode ,RawApi rawApi, Map<String, Object> varMap, Auth auth, AuthMechanism authMechanism, String logId) {
+    TestingRunConfig testingRunConfig;
+
+    public SecurityTestTemplate(ApiInfo.ApiInfoKey apiInfoKey, FilterNode filterNode, FilterNode validatorNode, ExecutorNode executorNode ,RawApi rawApi, Map<String, Object> varMap, Auth auth, AuthMechanism authMechanism, String logId, TestingRunConfig testingRunConfig) {
         this.apiInfoKey = apiInfoKey;
         this.filterNode = filterNode;
         this.validatorNode = validatorNode;
@@ -34,9 +40,12 @@ public abstract class SecurityTestTemplate {
         this.auth = auth;
         this.authMechanism = authMechanism;
         this.logId = logId;
+        this.testingRunConfig = testingRunConfig;
     }
 
     public abstract boolean filter();
+
+    public abstract boolean checkAuthBeforeExecution();
 
     public abstract List<ExecutionResult>  executor();
 
@@ -44,7 +53,17 @@ public abstract class SecurityTestTemplate {
 
     public List<TestResult> run() {
         boolean valid = filter();
-        if (!valid) return null;
+        if (!valid) {
+            List<TestResult> testResults = new ArrayList<>();
+            testResults.add(new TestResult(null, rawApi.getOriginalMessage(), Collections.singletonList("Request API failed to satisfy api_selection_filters block, skipping execution"), 0, false, TestResult.Confidence.HIGH, null));
+            return testResults;
+        }
+        valid = checkAuthBeforeExecution();
+        if (!valid) {
+            List<TestResult> testResults = new ArrayList<>();
+            testResults.add(new TestResult(null, rawApi.getOriginalMessage(), Collections.singletonList("Request API failed authentication check, skipping execution"), 0, false, TestResult.Confidence.HIGH, null));
+            return testResults;
+        }
         List<ExecutionResult> attempts = executor();
         return validator(attempts);
     }

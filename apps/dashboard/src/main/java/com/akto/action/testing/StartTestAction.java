@@ -25,11 +25,13 @@ import com.akto.log.LoggerMaker;
 import com.akto.log.LoggerMaker.LogDb;
 import com.akto.util.Constants;
 import com.akto.util.enums.GlobalEnums.TestErrorSource;
+import com.akto.utils.Utils;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.model.Updates;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 
@@ -56,7 +58,10 @@ public class StartTestAction extends UserAction {
     private String testName;
     private Map<String,String> metadata;
     private boolean fetchCicd;
+    private String triggeredBy;
+    private boolean isTestRunByTestEditor;
 
+    private String overriddenTestAppUrl;
     private static final LoggerMaker loggerMaker = new LoggerMaker(StartTestAction.class);
 
     private static List<ObjectId> getCicdTests(){
@@ -72,6 +77,15 @@ public class StartTestAction extends UserAction {
 
     private TestingRun createTestingRun(int scheduleTimestamp, int periodInSeconds) {
         User user = getSUser();
+
+        if (!StringUtils.isEmpty(this.overriddenTestAppUrl)) {
+            boolean isValidUrl = Utils.isValidURL(this.overriddenTestAppUrl);
+
+            if (!isValidUrl) {
+                addActionError("The override url is invalid. Please check the url again.");
+                return null;
+            }
+        }
 
         AuthMechanism authMechanism = AuthMechanismsDao.instance.findOne(new BasicDBObject());
         if (authMechanism == null && testIdConfig == 0) {
@@ -105,7 +119,7 @@ public class StartTestAction extends UserAction {
                 return null;
         }
         if (this.selectedTests != null) {
-            TestingRunConfig testingRunConfig = new TestingRunConfig(Context.now(), null, this.selectedTests,authMechanism.getId());
+            TestingRunConfig testingRunConfig = new TestingRunConfig(Context.now(), null, this.selectedTests,authMechanism.getId(), this.overriddenTestAppUrl);
             this.testIdConfig = testingRunConfig.getId();
             TestingRunConfigDao.instance.insertOne(testingRunConfig);
         }
@@ -131,6 +145,9 @@ public class StartTestAction extends UserAction {
         if(localTestingRun==null){
             try {
                 localTestingRun = createTestingRun(scheduleTimestamp, this.recurringDaily ? 86400 : 0);
+                if (triggeredBy.length() > 0) {
+                    localTestingRun.setTriggeredBy(triggeredBy);
+                }
             } catch (Exception e){
                 loggerMaker.errorAndAddToDb(e.toString(), LogDb.DASHBOARD);
             }
@@ -218,7 +235,8 @@ public class StartTestAction extends UserAction {
             Bson filterQ = Filters.and(
                 Filters.lte(TestingRun.SCHEDULE_TIMESTAMP, this.endTimestamp),
                 Filters.gte(TestingRun.SCHEDULE_TIMESTAMP, this.startTimestamp),
-                Filters.nin(Constants.ID,getCicdTests())
+                Filters.nin(Constants.ID,getCicdTests()),
+                Filters.ne("triggeredBy", "test_editor")
             );
             testingRuns = TestingRunDao.instance.findAll(filterQ);
         }
@@ -294,6 +312,9 @@ public class StartTestAction extends UserAction {
                 }
                 TestingIssuesId issuesId = new TestingIssuesId(result.getApiInfoKey(), TestErrorSource.AUTOMATED_TESTING,
                         category, config != null ? config.getId() : null);
+                if (isTestRunByTestEditor) {
+                    issuesId.setTestErrorSource(TestErrorSource.TEST_EDITOR);
+                }
                 runIssues = TestingRunIssuesDao.instance.findOne(Filters.eq(Constants.ID, issuesId));
             }
         }catch (Exception ignore) {}
@@ -491,6 +512,30 @@ public class StartTestAction extends UserAction {
 
     public void setSource(CallSource source) {
         this.source = source;
+    }
+
+    public String getTriggeredBy() {
+        return triggeredBy;
+    }
+
+    public void setTriggeredBy(String triggeredBy) {
+        this.triggeredBy = triggeredBy;
+    }
+
+    public boolean isTestRunByTestEditor() {
+        return isTestRunByTestEditor;
+    }
+
+    public void setIsTestRunByTestEditor(boolean testRunByTestEditor) {
+        isTestRunByTestEditor = testRunByTestEditor;
+    }
+
+    public void setOverriddenTestAppUrl(String overriddenTestAppUrl) {
+        this.overriddenTestAppUrl = overriddenTestAppUrl;
+    }
+
+    public String getOverriddenTestAppUrl() {
+        return overriddenTestAppUrl;
     }
 
     public enum CallSource{

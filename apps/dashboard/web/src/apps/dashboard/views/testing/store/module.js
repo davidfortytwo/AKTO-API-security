@@ -75,8 +75,8 @@ const testing = {
                 commit('SAVE_TESTING_RUNS', resp)
             })
         },
-        scheduleTestForCollection({commit}, {apiCollectionId, startTimestamp, recurringDaily, selectedTests, testName,testRunTime, maxConcurrentRequests} ) {
-            return api.scheduleTestForCollection(apiCollectionId, startTimestamp, recurringDaily, selectedTests, testName, testRunTime, maxConcurrentRequests).then((resp) => {
+        scheduleTestForCollection({commit}, {apiCollectionId, startTimestamp, recurringDaily, selectedTests, testName,testRunTime, maxConcurrentRequests, overriddenTestAppUrl} ) {
+            return api.scheduleTestForCollection(apiCollectionId, startTimestamp, recurringDaily, selectedTests, testName, testRunTime, maxConcurrentRequests, overriddenTestAppUrl).then((resp) => {
                 commit('SAVE_TESTING_RUNS', resp)
             })
         },
@@ -85,14 +85,19 @@ const testing = {
                 commit('SAVE_TESTING_RUNS', resp)
             })
         },
-        scheduleTestForCustomEndpoints({commit}, {apiInfoKeyList, startTimestamp, recurringDaily, selectedTests, testName, testRunTime, maxConcurrentRequests, source} ) {
-            return api.scheduleTestForCustomEndpoints(apiInfoKeyList, startTimestamp, recurringDaily, selectedTests, testName, testRunTime, maxConcurrentRequests, source).then((resp) => {
+        scheduleTestForCustomEndpoints({commit}, {apiInfoKeyList, startTimestamp, recurringDaily, selectedTests, testName, testRunTime, maxConcurrentRequests, overriddenTestAppUrl, source} ) {
+            return api.scheduleTestForCustomEndpoints(apiInfoKeyList, startTimestamp, recurringDaily, selectedTests, testName, testRunTime, maxConcurrentRequests, overriddenTestAppUrl, source).then((resp) => {
                 commit('SAVE_TESTING_RUNS', resp)
             })
         },
         addAuthMechanism({commit}, {type, requestData, authParamData}) {
             return api.addAuthMechanism(type, requestData, authParamData).then(resp => {
-                commit('SAVE_AUTH_MECHANISM', resp)
+
+            })
+        },
+        addTestTemplate({commit},{content, originalTestId}) {
+            return api.addTestTemplate(content, originalTestId).then(resp => {
+                return resp
             })
         },
         loadTestingRunResults({commit}) {
